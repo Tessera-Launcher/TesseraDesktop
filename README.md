@@ -4,7 +4,9 @@
 
 ## 许可
 
-GPL-3.0-or-later。其中 `vendor/mdt-minecraft` 为 MIT，`vendor/minecraft-auth` 为 LGPL-3.0-or-later。
+GPL-3.0-or-later。其中 `vendor/mdt-minecraft` 为 MIT，`vendor/minecraft-auth` 为 LGPL-3.0-or-later；
+`assets/icons` 里 vendor 的像素图标为 MIT（Gerrit Halfmann 的 pixelarticons，来源与版本见
+`assets/icons/NOTICE.md`）。
 
 ## 构建
 

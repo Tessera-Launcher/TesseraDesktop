@@ -160,6 +160,12 @@
         "unit": "px"
       }
     },
+    "icon": {
+      "$value": {
+        "value": 24,
+        "unit": "px"
+      }
+    },
     "indicatorWidth": {
       "$value": {
         "value": 3,

@@ -61,7 +61,24 @@ impl Page {
         }
     }
 
-    /// One sidebar row: the indicator dot plus the label.
+    /// The icon that stands for this page.
+    ///
+    /// One per page and no more: the icon is the row's only mark now that the
+    /// accent bar is gone, so it has to name the page on its own.
+    fn icon(self) -> crate::icons::Icon {
+        use crate::icons::Icon;
+        match self {
+            Page::Home => Icon::Home,
+            Page::Accounts => Icon::User,
+            Page::Download => Icon::Download,
+            Page::Runtimes => Icon::Package,
+            Page::Music => Icon::Music,
+            Page::Mods => Icon::Blocks,
+            Page::Settings => Icon::Settings,
+        }
+    }
+
+    /// One sidebar row: the page's icon plus its label.
     fn row(
         self,
         picked: bool,
@@ -80,16 +97,18 @@ impl Page {
             .cursor_pointer()
             .bg(rgb(if focused { colors.hover } else { colors.canvas }))
             .hover(move |style| style.bg(rgb(colors.hover)))
-            .child(
-                div()
-                    .w(px(layout::INDICATOR_WIDTH))
-                    .h(px(layout::INDICATOR_HEIGHT))
-                    .bg(rgb(if picked {
-                        colors.fill_primary
-                    } else {
-                        colors.canvas
-                    })),
-            )
+            .child(crate::icons::icon(
+                self.icon(),
+                // The accent bar used to say "you are here" in the theme color
+                // and the background color otherwise, which read as a hole in
+                // the sidebar. The icon says it instead: muted gray at rest,
+                // the accent while the page is the one on screen.
+                if picked {
+                    colors.text_accent
+                } else {
+                    colors.text_secondary
+                },
+            ))
             .child(
                 div()
                     .text_size(px(font::BODY))

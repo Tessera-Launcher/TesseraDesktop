@@ -21,6 +21,7 @@ pub mod layout {
     pub const CONTROL_HEIGHT: f32 = 36.0;
     pub const DETAILS: f32 = 352.0;
     pub const DIALOG: f32 = 480.0;
+    pub const ICON: f32 = 24.0;
     pub const INDICATOR_HEIGHT: f32 = 16.0;
     pub const INDICATOR_WIDTH: f32 = 3.0;
     pub const INSPECTOR: f32 = 280.0;

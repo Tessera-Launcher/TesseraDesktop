@@ -45,6 +45,7 @@ use crate::design_tokens::{color, font, layout, radius, space, stroke, weight};
 mod design_tokens;
 mod focus;
 mod fonts;
+mod icons;
 mod theme;
 
 mod loading;
