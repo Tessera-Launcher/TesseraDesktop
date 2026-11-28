@@ -1,5 +1,7 @@
-//! Normalize downloaded jars: drop signatures, sealed-package attributes and
-//! the per-entry manifest sections that signing left behind.
+//! Normalize downloaded jars: drop signatures, sealed-package attributes,
+//! stale jar indexes and the per-entry manifest sections that signing left
+//! behind. A manifest that would extend the class path is refused instead of
+//! being silently accepted.
 //!
 //! MDT used to rewrite every jar while it still moved the bytes itself. Since
 //! downloads moved to aria2, the raw Mojang jar is what lands on disk — signed,
@@ -25,15 +27,19 @@ use std::path::Path;
 
 use crate::error::{Error, Result};
 
-/// Strip JAR signatures, `Sealed:` attributes and per-entry manifest sections
-/// from `path`, in place.
+/// Strip JAR signatures, `Sealed:` attributes, `INDEX.LIST`, generic `SIG-*`
+/// blocks and per-entry manifest sections from `path`, in place.
 ///
 /// Returns `true` when the file was rewritten. Signature entries (`META-INF/*.SF`,
-/// `*.RSA`, `*.DSA`, `*.EC`) are dropped. The manifest keeps only its main
-/// section, without `Sealed:` lines: the `Name:` sections that carry per-entry
-/// digests are signing residue, and a training run on a jar that still has them
-/// stalls in the JVM's AOT recorder. Entry order and compression are preserved.
-/// The original jar is replaced, not copied aside. A second run is a no-op.
+/// `*.RSA`, `*.DSA`, `*.EC`, `SIG-*`) are dropped. The manifest keeps only its
+/// main section, without `Sealed:` lines: the `Name:` sections that carry
+/// per-entry digests are signing residue, and a training run on a jar that still
+/// has them stalls in the JVM's AOT recorder. An `INDEX.LIST` describes the old
+/// entry set and would be stale after a rewrite, so it is dropped too. A
+/// manifest `Class-Path` would put entries on the class path that the launcher
+/// does not control, so it is refused. Duplicate entry names are refused for the
+/// same reason. Entry order and compression are preserved. The original jar is
+/// replaced, not copied aside. A second run is a no-op.
 pub(crate) fn normalize(path: &Path) -> Result<bool> {
     let archive = zip::ZipArchive::new(BufReader::new(open(path)?))
         .map_err(|error| Error::invalid(format!("无法解析 {}: {error}", path.display())))?;
@@ -45,6 +51,8 @@ pub(crate) fn normalize(path: &Path) -> Result<bool> {
 
 /// Why the launcher cannot use this jar as downloaded.
 fn needs_normalizing(mut archive: zip::ZipArchive<BufReader<File>>) -> Result<bool> {
+    let mut names = std::collections::HashSet::new();
+    let mut rewrite = false;
     for index in 0..archive.len() {
         let mut entry = archive
             .by_index(index)
@@ -53,20 +61,24 @@ fn needs_normalizing(mut archive: zip::ZipArchive<BufReader<File>>) -> Result<bo
             .name()
             .map_err(|error| Error::invalid(format!("无法读取 jar 条目名: {error}")))?
             .into_owned();
-        if is_signature_entry(&name) {
-            return Ok(true);
+        if !names.insert(name.clone()) {
+            return Err(Error::invalid(format!("jar 含重复条目：{name}")));
+        }
+        if is_signature_entry(&name) || is_index_list(&name) {
+            rewrite = true;
         }
         if name.eq_ignore_ascii_case("META-INF/MANIFEST.MF") {
             let mut text = String::new();
             entry
                 .read_to_string(&mut text)
                 .map_err(|error| Error::invalid(format!("无法读取 {name}: {error}")))?;
+            check_manifest(&text)?;
             if needs_cleaning(&text) {
-                return Ok(true);
+                rewrite = true;
             }
         }
     }
-    Ok(false)
+    Ok(rewrite)
 }
 
 /// Whether this client jar carries a launcher patch (currently the Celeritas /
@@ -121,6 +133,7 @@ fn write_normalized(source: &Path, tmp: &Path) -> Result<()> {
     let output = File::create(tmp)
         .map_err(|error| Error::io(format!("无法写入 {}", tmp.display()), error))?;
     let mut writer = zip::ZipWriter::new(output);
+    let mut names = std::collections::HashSet::new();
     for index in 0..archive.len() {
         let mut entry = archive
             .by_index(index)
@@ -129,7 +142,10 @@ fn write_normalized(source: &Path, tmp: &Path) -> Result<()> {
             .name()
             .map_err(|error| Error::invalid(format!("无法读取 jar 条目名: {error}")))?
             .into_owned();
-        if is_signature_entry(&name) {
+        if !names.insert(name.clone()) {
+            return Err(Error::invalid(format!("jar 含重复条目：{name}")));
+        }
+        if is_signature_entry(&name) || is_index_list(&name) {
             continue;
         }
         let options =
@@ -139,6 +155,7 @@ fn write_normalized(source: &Path, tmp: &Path) -> Result<()> {
             entry
                 .read_to_string(&mut text)
                 .map_err(|error| Error::invalid(format!("无法读取 {name}: {error}")))?;
+            check_manifest(&text)?;
             writer
                 .start_file(&name, options)
                 .map_err(|error| Error::invalid(format!("无法写入 jar 条目 {name}: {error}")))?;
@@ -239,7 +256,35 @@ fn is_signature_entry(name: &str) -> bool {
         && (upper.ends_with(".SF")
             || upper.ends_with(".RSA")
             || upper.ends_with(".DSA")
-            || upper.ends_with(".EC"))
+            || upper.ends_with(".EC")
+            || upper.starts_with("META-INF/SIG-"))
+}
+
+/// A jar index lists the entries of the archive it was built from. After a
+/// rewrite it points at names that no longer exist, so it has to go.
+fn is_index_list(name: &str) -> bool {
+    name.eq_ignore_ascii_case("META-INF/INDEX.LIST")
+}
+
+/// A manifest `Class-Path` adds entries the launcher did not put there. A
+/// locked install cannot allow that: the AOT cache is keyed by the class path,
+/// and a jar that quietly extends it defeats both the key and the baseline.
+fn manifest_class_path(manifest: &str) -> Option<&str> {
+    manifest.lines().find_map(|line| {
+        let trimmed = line.trim_start();
+        let (name, value) = trimmed.split_once(':')?;
+        name.eq_ignore_ascii_case("Class-Path")
+            .then_some(value.trim())
+    })
+}
+
+fn check_manifest(manifest: &str) -> Result<()> {
+    if let Some(value) = manifest_class_path(manifest) {
+        return Err(Error::invalid(format!(
+            "manifest 声明了 Class-Path，拒绝归一化：{value}"
+        )));
+    }
+    Ok(())
 }
 
 fn is_sealed(line: &str) -> bool {
@@ -374,6 +419,48 @@ mod tests {
             "Manifest-Version: 1.0\r\nMain-Class: net.minecraft.client.Main\r\n"
         );
         assert!(names(&path).contains(&"a/B.class".to_string()));
+    }
+
+    #[test]
+    fn a_manifest_class_path_is_refused() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("mod.jar");
+        jar(
+            &path,
+            &[
+                (
+                    "META-INF/MANIFEST.MF",
+                    b"Manifest-Version: 1.0\r\nClass-Path: lib/hidden.jar\r\n\r\n",
+                ),
+                ("a/Thing.class", b"CAFEBABE"),
+            ],
+        );
+        let before = fs::read(&path).unwrap();
+
+        let error = normalize(&path).unwrap_err();
+        assert!(error.to_string().contains("Class-Path"), "{error}");
+        assert_eq!(
+            fs::read(&path).unwrap(),
+            before,
+            "refused before any rewrite"
+        );
+    }
+
+    #[test]
+    fn stale_indexes_and_generic_signature_blocks_are_dropped() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("mod.jar");
+        jar(
+            &path,
+            &[
+                ("META-INF/INDEX.LIST", b"JarIndex-Version: 1.0\n"),
+                ("META-INF/SIG-EXAMPLE", b"\x30\x82"),
+                ("a/Thing.class", b"CAFEBABE"),
+            ],
+        );
+
+        assert!(normalize(&path).unwrap());
+        assert_eq!(names(&path), vec!["a/Thing.class".to_string()]);
     }
 
     #[test]

@@ -15,7 +15,8 @@
 //! `patch.toml` and content-addressed `blobs/`. Base verification is over the
 //! sorted uncompressed entry hashes, not the raw jar bytes, so the launcher's
 //! normalized jar and the patch generator's base compare correctly even if ZIP
-//! timestamps differ.
+//! timestamps differ. A patch may additionally pin the raw jar with
+//! `base.sha256`; when present that byte hash is checked too.
 
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
@@ -94,6 +95,8 @@ struct PatchManifest {
 #[derive(Deserialize)]
 struct BaseInfo {
     entries_sha256: String,
+    #[serde(default)]
+    sha256: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -304,6 +307,15 @@ pub fn apply(root: &Path, patch_path: &Path) -> Result<usize> {
         return Err(Error::invalid(
             "客户端 jar 与补丁基准不匹配（请重新安装 1.8.9）".to_string(),
         ));
+    }
+    if let Some(expected) = &manifest.base.sha256 {
+        let actual = sha256_file(&client_jar)
+            .map_err(|error| Error::io(format!("无法读取 {}", client_jar.display()), error))?;
+        if !actual.eq_ignore_ascii_case(expected) {
+            return Err(Error::invalid(
+                "客户端 jar 字节哈希与补丁基准不匹配（请重新安装 1.8.9）".to_string(),
+            ));
+        }
     }
 
     let mut target = base.clone();
@@ -668,6 +680,39 @@ mod tests {
 
         let error = apply(tmp.path(), &patch_path).unwrap_err();
         assert!(error.to_string().contains("基准不匹配"), "{error}");
+        assert_eq!(std::fs::read(&base_path).unwrap(), before);
+    }
+
+    #[test]
+    fn a_base_byte_hash_mismatch_refuses_to_touch_the_jar() {
+        let tmp = tempfile::tempdir().unwrap();
+        let version_dir = tmp.path().join("versions/1.8.9");
+        std::fs::create_dir_all(&version_dir).unwrap();
+        let base_path = version_dir.join("1.8.9.jar");
+        jar(&base_path, &[("a.class", b"base")]);
+        let before = std::fs::read(&base_path).unwrap();
+        let base: BTreeMap<String, Vec<u8>> = [("a.class".to_string(), b"base".to_vec())]
+            .into_iter()
+            .collect();
+
+        let patch_path = tmp.path().join("client.tpatch");
+        {
+            let file = File::create(&patch_path).unwrap();
+            let mut zip = ZipWriter::new(file);
+            let options =
+                SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+            zip.start_file("patch.toml", options).unwrap();
+            let manifest = format!(
+                "format = 1\ncanonicalization = 1\nfiles = []\n\n[base]\nentries_sha256 = \"{}\"\nsha256 = \"{}\"\n",
+                entries_digest(&base),
+                "0".repeat(64)
+            );
+            zip.write_all(manifest.as_bytes()).unwrap();
+            zip.finish().unwrap();
+        }
+
+        let error = apply(tmp.path(), &patch_path).unwrap_err();
+        assert!(error.to_string().contains("字节哈希"), "{error}");
         assert_eq!(std::fs::read(&base_path).unwrap(), before);
     }
 
