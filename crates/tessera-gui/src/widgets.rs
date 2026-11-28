@@ -196,21 +196,38 @@ pub(crate) fn log_pane(
 /// Sections replace the old bordered cards. They keep the same semantic
 /// grouping without painting a container, so the page reads as one surface.
 fn section_header(colors: &'static color::Palette, title: &str) -> Div {
-    div()
+    section_header_icon(colors, None, title)
+}
+
+/// A section heading that opens with an icon.
+///
+/// The icon is set in the same quiet tone as the label: it is there to be
+/// recognised at a glance on a page of near-identical headings, not to compete
+/// with the content under it. It is 24 px, the height of the caption line, so
+/// the heading keeps its height.
+fn section_header_icon(
+    colors: &'static color::Palette,
+    icon: Option<crate::icons::Icon>,
+    title: &str,
+) -> Div {
+    let mut header = div()
         .h_flex()
         .items_center()
         .gap(px(space::MD))
         .pb(px(space::SM))
         .border_b(px(stroke::THIN))
-        .border_color(rgb(colors.border_default))
-        .child(
-            div()
-                .text_size(px(font::CAPTION))
-                .line_height(relative(font::LINE_HEIGHT_CAPTION))
-                .font_weight(FontWeight(weight::SEMIBOLD))
-                .text_color(rgb(colors.text_secondary))
-                .child(title.to_string()),
-        )
+        .border_color(rgb(colors.border_default));
+    if let Some(icon) = icon {
+        header = header.child(crate::icons::icon(icon, colors.text_secondary));
+    }
+    header.child(
+        div()
+            .text_size(px(font::CAPTION))
+            .line_height(relative(font::LINE_HEIGHT_CAPTION))
+            .font_weight(FontWeight(weight::SEMIBOLD))
+            .text_color(rgb(colors.text_secondary))
+            .child(title.to_string()),
+    )
 }
 
 /// A section heading with a control on its right end.
@@ -229,6 +246,19 @@ pub(crate) fn panel_fit(
     title: &str,
     body: impl IntoElement,
 ) -> impl IntoElement {
+    panel_fit_icon(colors, None, title, body)
+}
+
+/// A content-height panel whose heading opens with an icon.
+///
+/// The settings page is four headings of the same weight; the icons are what
+/// make them recognisable before the words are read.
+pub(crate) fn panel_fit_icon(
+    colors: &'static color::Palette,
+    icon: Option<crate::icons::Icon>,
+    title: &str,
+    body: impl IntoElement,
+) -> impl IntoElement {
     div()
         .v_flex()
         .w_full()
@@ -239,7 +269,7 @@ pub(crate) fn panel_fit(
         .min_w(px(0.0))
         .min_h(px(0.0))
         .flex_shrink_0()
-        .child(section_header(colors, title))
+        .child(section_header_icon(colors, icon, title))
         .child(body)
 }
 

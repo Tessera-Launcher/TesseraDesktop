@@ -362,7 +362,14 @@ impl Launcher {
                         colors.canvas
                     }))
                     .text_color(rgb(colors.text_accent))
-                    .child(if playing { "⏸" } else { "▶" })
+                    .child(crate::icons::icon(
+                        if playing {
+                            crate::icons::Icon::Pause
+                        } else {
+                            crate::icons::Icon::Play
+                        },
+                        colors.text_accent,
+                    ))
                     .on_click(cx.listener(|this: &mut Launcher, _event, _window, cx| {
                         this.state.music_play_pause();
                         this.refresh(cx);
@@ -394,13 +401,10 @@ impl Launcher {
                     .text_color(rgb(colors.text_secondary))
                     .child(total),
             )
-            .child(
-                div()
-                    .flex_shrink_0()
-                    .text_size(px(font::CAPTION))
-                    .text_color(rgb(colors.text_secondary))
-                    .child("音量"),
-            )
+            .child(div().flex_shrink_0().child(crate::icons::icon(
+                crate::icons::Icon::Volume,
+                colors.text_secondary,
+            )))
             .child(
                 div()
                     .relative()

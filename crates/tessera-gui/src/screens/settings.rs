@@ -413,9 +413,29 @@ impl Launcher {
             .overflow_y_scroll()
             .gap(px(space::MD))
             .child(screen_title(colors, "设置"))
-            .child(panel_fit(colors, "外观", appearance))
-            .child(panel_fit(colors, "游戏内存", memory))
-            .child(panel_fit(colors, "下载", download))
-            .child(panel_fit(colors, "磁盘清理", disk))
+            .child(panel_fit_icon(
+                colors,
+                Some(crate::icons::Icon::Swatch),
+                "外观",
+                appearance,
+            ))
+            .child(panel_fit_icon(
+                colors,
+                Some(crate::icons::Icon::Memory),
+                "游戏内存",
+                memory,
+            ))
+            .child(panel_fit_icon(
+                colors,
+                Some(crate::icons::Icon::Download),
+                "下载",
+                download,
+            ))
+            .child(panel_fit_icon(
+                colors,
+                Some(crate::icons::Icon::Trash),
+                "磁盘清理",
+                disk,
+            ))
     }
 }

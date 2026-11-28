@@ -1,6 +1,6 @@
 # Vendored icons
 
-The sidebar draws seven pixelarticons glyphs. Only those seven files are
+The launcher draws a handful of pixelarticons glyphs. Only those files are
 compiled in (`include_bytes!` in `crates/tessera-gui/src/icons.rs`), so the
 binary carries exactly the artwork it shows — no icon font, no runtime asset
 lookup, no `assets/` tree at startup.
@@ -10,8 +10,10 @@ lookup, no `assets/` tree at startup.
 - Pinned commit: `c9ecc2da61afde85dbe539025e3d931c6152ad75` (tag `2.4.2`)
 - Designer: Gerrit Halfmann (halfmage)
 - License: MIT — the full text is in `LICENSE`.
-- Taken, unchanged: `svg/home.svg`, `svg/user.svg`, `svg/download.svg`,
-  `svg/package.svg`, `svg/music.svg`, `svg/blocks.svg`, `svg/settings-2.svg`.
+- Taken, unchanged: `svg/blocks.svg`, `svg/colors-swatch.svg`,
+  `svg/download.svg`, `svg/home.svg`, `svg/memory-stick.svg`, `svg/music.svg`,
+  `svg/package.svg`, `svg/pause.svg`, `svg/play.svg`, `svg/settings-2.svg`,
+  `svg/trash.svg`, `svg/user.svg`, `svg/volume-2.svg`.
 - Changes: none. The artwork, the file names and the `<path>` data are
   upstream's, byte for byte.
 - Only the **free** set was taken. pixelarticons also sells a Pro set; nothing
@@ -20,7 +22,9 @@ lookup, no `assets/` tree at startup.
 ## Why the size is fixed
 
 The art is drawn on a 24×24 grid of axis-aligned 1 px rectangles and every file
-declares `width="24" height="24" viewBox="0 0 24 24"`. `layout::ICON` is 24 px,
+declares `viewBox="0 0 24 24"` (`pause.svg` is minified upstream and drops the
+`width`/`height` attributes; usvg sizes a document from its viewBox, so nothing
+depends on them). `layout::ICON` is 24 px,
 which is also the line box of 16 px body text at the 1.5 line height, so an
 icon and the label beside it are the same height by construction.
 
