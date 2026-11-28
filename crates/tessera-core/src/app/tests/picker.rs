@@ -481,19 +481,21 @@ fn aot_progress_and_completion_land_on_the_main_screen() {
 }
 
 #[test]
-fn only_vanilla_versions_can_be_trained() {
+fn loader_versions_can_be_trained_too() {
     let mut loader = version("1.8.9-forge-11.15.0.1656");
     loader.loader = true;
     let mut app = App::new("/mc", "/acc", vec![loader], Vec::new());
     app.start_aot_training();
-    assert!(app.aot.training.is_none());
-    assert!(
-        !app.effects()
-            .iter()
-            .any(|effect| matches!(effect, Effect::TrainAot { .. })),
-        "a loader install gets no cache, so no training run"
+    assert_eq!(
+        app.aot.training.as_deref(),
+        Some("1.8.9-forge-11.15.0.1656")
     );
-    assert!(app.status.contains("原版"), "{}", app.status);
+    assert!(
+        app.effects()
+            .iter()
+            .any(|effect| matches!(effect, Effect::TrainAot { dir, .. } if dir == "1.8.9-forge-11.15.0.1656")),
+        "a loader install gets a cache for the classes the app loader can see"
+    );
 }
 
 #[test]

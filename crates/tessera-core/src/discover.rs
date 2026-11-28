@@ -31,7 +31,7 @@ pub struct LocalVersion {
     /// itself, so nothing on disk has to be its parent.
     pub inherits: Option<String>,
     /// A mod-loader profile (self-contained or `inheritsFrom`), as opposed to a
-    /// vanilla install. Decides the Java rule and whether AOT can be trained.
+    /// vanilla install. Decides the Java rule.
     pub loader: bool,
     /// `mainClass`, the first thing a launch layer needs.
     pub main_class: Option<String>,

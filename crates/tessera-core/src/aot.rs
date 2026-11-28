@@ -10,8 +10,9 @@
 //! Training is started by the player (the button next to 启动), never by an
 //! install: the cache is large, it has to be rebuilt after a Java upgrade, and
 //! a player who only plays once does not want either cost. Mod Loader installs
-//! are refused by the caller — their custom class loaders load the classes AOT
-//! cannot cache.
+//! are trained too, but their custom class loader keeps the game and mod
+//! classes out of the cache; only the JDK and loader classes loaded by the app
+//! loader enter it, so the gain is smaller than for vanilla.
 //!
 //! A run ends when the player quits the game, not on a timer. Since JEP 544
 //! (JDK 28) the same cache also carries the C2 code compiled during the run, so
@@ -131,7 +132,7 @@ pub struct Training {
     pub credentials: launch::Credentials,
 }
 
-/// Train one vanilla version and leave a cache next to its jar.
+/// Train one version and leave a cache next to its jar.
 pub fn spawn(training: Training, cancel: Arc<AtomicBool>) -> Receiver<Event> {
     let failed_version = training.version.clone();
     crate::task::spawn_reporter(

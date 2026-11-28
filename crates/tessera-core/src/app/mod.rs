@@ -519,10 +519,11 @@ impl App {
 
     /// Start an AOT training run for the selected version.
     ///
-    /// Only vanilla profiles are accepted: a loader install puts the game behind
-    /// its own class loader, and classes loaded that way never enter the cache,
-    /// so training one would cost a full game start and a large archive for no
-    /// speed-up.
+    /// Loader installs are accepted as well. Their custom class loader keeps the
+    /// game and mod classes out of the cache, but the JDK and the loader's own
+    /// classes still enter it, which shortens startup. The cache is keyed by the
+    /// class path, so changing the install invalidates it and it has to be
+    /// trained again.
     pub fn start_aot_training(&mut self) {
         if self.aot.training.is_some() {
             self.status = "已有 AOT 训练在进行".to_string();
@@ -536,11 +537,6 @@ impl App {
             self.status = "未选择版本".to_string();
             return;
         };
-        if version.loader {
-            self.status = "只有原版版本可以训练 AOT".to_string();
-            self.log("Mod Loader 用自定义类加载器加载游戏，那些类进不了 AOT 缓存，所以不训练");
-            return;
-        }
         if !version.has_profile || !version.has_jar {
             self.status = "版本文件不完整，无法训练".to_string();
             return;
